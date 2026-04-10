@@ -1,0 +1,32 @@
+{
+  "skills": [
+    {
+      "name": "nextjs-best-practices",
+      "reason": "Enforces Next.js 14 App Router patterns — server vs client components, metadata API, route conventions. Prevents accidental Pages Router usage."
+    },
+    {
+      "name": "shadcn-ui",
+      "reason": "Knows every shadcn/ui primitive, variant, and composition pattern. Prevents reinventing components that already exist in the library."
+    },
+    {
+      "name": "tailwind-v4-shadcn",
+      "reason": "Covers Tailwind CSS utility patterns alongside shadcn. Prevents inline styles and ensures consistent use of design tokens from globals.css."
+    },
+    {
+      "name": "nestjs-best-practices",
+      "reason": "Guards NestJS module structure, dependency injection, guard/interceptor/filter patterns. Prevents anti-patterns like circular dependencies or missing providers."
+    },
+    {
+      "name": "prisma-orm",
+      "reason": "Knows Prisma schema syntax, migration workflow, and query API. Prevents raw SQL usage and incorrect relation definitions."
+    },
+    {
+      "name": "docker-expert",
+      "reason": "Covers multi-stage Dockerfile patterns, compose networking, volume mounts, and health checks. Prevents broken container builds and networking issues."
+    },
+    {
+      "name": "postgresql-table-design",
+      "reason": "Guides index strategy, constraint naming, and data type selection. Complements prisma-orm for schema design decisions."
+    }
+  ]
+}
