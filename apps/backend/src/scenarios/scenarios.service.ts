@@ -1,18 +1,183 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import type { ScenarioRun } from '@prisma/client';
+import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
+import { PrismaService } from '../prisma/prisma.service';
 import type { RunScenarioDto } from './dto/run-scenario.dto';
+import type { ScenarioResult } from './scenarios.types';
 
-/**
- * Stub implementation — full scenario execution logic is added in Step 07
- * after Prisma schema and observability wiring are in place.
- */
+/** Artificial delay range for slow_request scenario (ms) */
+const SLOW_MIN_MS = 2_000;
+const SLOW_MAX_MS = 5_000;
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+const randomBetween = (min: number, max: number): number =>
+  Math.floor(Math.random() * (max - min + 1)) + min;
+
 @Injectable()
 export class ScenariosService {
-  run(_dto: RunScenarioDto): Promise<{ id: string; status: string }> {
-    return Promise.resolve({ id: 'stub', status: 'pending' });
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectPinoLogger(ScenariosService.name) private readonly logger: PinoLogger,
+  ) {}
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+
+  async run(dto: RunScenarioDto): Promise<ScenarioResult> {
+    switch (dto.type) {
+      case 'success':
+        return this.runSuccess(dto);
+      case 'validation_error':
+        return this.runValidationError(dto);
+      case 'system_error':
+        return this.runSystemError(dto);
+      case 'slow_request':
+        return this.runSlowRequest(dto);
+      case 'teapot':
+        return this.runTeapot(dto);
+    }
   }
 
-  history(): Promise<unknown[]> {
-    return Promise.resolve([]);
+  async history(): Promise<ScenarioRun[]> {
+    return this.prisma.scenarioRun.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+  }
+
+  // ── Scenario handlers ──────────────────────────────────────────────────────
+
+  private async runSuccess(dto: RunScenarioDto): Promise<ScenarioResult> {
+    const start = Date.now();
+
+    const run = await this.prisma.scenarioRun.create({
+      data: { type: 'success', name: dto.name, status: 'pending' },
+    });
+
+    // Simulate a small amount of realistic work
+    await sleep(randomBetween(50, 200));
+    const duration = Date.now() - start;
+
+    await this.prisma.scenarioRun.update({
+      where: { id: run.id },
+      data: { status: 'completed', duration },
+    });
+
+    this.logger.info(
+      { scenarioId: run.id, scenarioType: 'success', duration },
+      'Scenario completed successfully',
+    );
+
+    return { id: run.id, status: 'completed', duration };
+  }
+
+  private async runValidationError(dto: RunScenarioDto): Promise<ScenarioResult> {
+    const start = Date.now();
+    const errorMessage = 'Scenario input failed validation: name must not be empty when provided';
+
+    const run = await this.prisma.scenarioRun.create({
+      data: { type: 'validation_error', name: dto.name, status: 'failed', error: errorMessage },
+    });
+
+    const duration = Date.now() - start;
+
+    await this.prisma.scenarioRun.update({
+      where: { id: run.id },
+      data: { duration },
+    });
+
+    this.logger.warn(
+      { scenarioId: run.id, scenarioType: 'validation_error', duration, error: errorMessage },
+      'Scenario rejected due to validation error',
+    );
+
+    throw new BadRequestException(errorMessage);
+  }
+
+  private async runSystemError(dto: RunScenarioDto): Promise<ScenarioResult> {
+    const start = Date.now();
+    const errorMessage = 'Unhandled internal exception — this is intentional for observability demo';
+
+    const run = await this.prisma.scenarioRun.create({
+      data: { type: 'system_error', name: dto.name, status: 'failed', error: errorMessage },
+    });
+
+    const duration = Date.now() - start;
+
+    await this.prisma.scenarioRun.update({
+      where: { id: run.id },
+      data: { duration },
+    });
+
+    this.logger.error(
+      { scenarioId: run.id, scenarioType: 'system_error', duration, error: errorMessage },
+      'System error scenario triggered',
+    );
+
+    // Throw an unhandled exception — Sentry will capture this in Step 14
+    throw new InternalServerErrorException(errorMessage);
+  }
+
+  private async runSlowRequest(dto: RunScenarioDto): Promise<ScenarioResult> {
+    const start = Date.now();
+    const delay = randomBetween(SLOW_MIN_MS, SLOW_MAX_MS);
+
+    const run = await this.prisma.scenarioRun.create({
+      data: { type: 'slow_request', name: dto.name, status: 'pending' },
+    });
+
+    await sleep(delay);
+    const duration = Date.now() - start;
+
+    await this.prisma.scenarioRun.update({
+      where: { id: run.id },
+      data: { status: 'completed', duration },
+    });
+
+    this.logger.warn(
+      { scenarioId: run.id, scenarioType: 'slow_request', duration, delay },
+      'Slow request scenario completed — latency spike recorded',
+    );
+
+    return { id: run.id, status: 'completed', duration };
+  }
+
+  private async runTeapot(dto: RunScenarioDto): Promise<ScenarioResult> {
+    const start = Date.now();
+
+    const run = await this.prisma.scenarioRun.create({
+      data: {
+        type: 'teapot',
+        name: dto.name,
+        status: 'completed',
+        metadata: { easter: true, signal: 42 },
+      },
+    });
+
+    const duration = Date.now() - start;
+
+    await this.prisma.scenarioRun.update({
+      where: { id: run.id },
+      data: { duration },
+    });
+
+    this.logger.info(
+      { scenarioId: run.id, scenarioType: 'teapot', duration, signal: 42, easter: true },
+      "I'm a teapot",
+    );
+
+    // HTTP 418 — the controller handles the throw
+    throw new HttpException(
+      { id: run.id, signal: 42, message: "I'm a teapot", status: 'completed', duration },
+      HttpStatus.I_AM_A_TEAPOT,
+    );
   }
 }

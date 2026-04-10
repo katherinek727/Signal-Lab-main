@@ -27,11 +27,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
+    // For HTTP 418 (teapot) the body is already the full intended payload —
+    // pass it through verbatim so the frontend receives { signal: 42, ... }.
+    if (statusCode === HttpStatus.I_AM_A_TEAPOT && exception instanceof HttpException) {
+      response.status(statusCode).json(exception.getResponse());
+      return;
+    }
+
+    const exceptionResponse =
+      exception instanceof HttpException ? exception.getResponse() : null;
+
     const message =
-      exception instanceof HttpException
-        ? (exception.getResponse() as { message?: string }).message ??
-          exception.message
-        : 'Internal server error';
+      exceptionResponse !== null && typeof exceptionResponse === 'object'
+        ? ((exceptionResponse as { message?: unknown }).message ?? 'Internal server error')
+        : exception instanceof Error
+          ? exception.message
+          : 'Internal server error';
 
     const body: ErrorResponse = {
       statusCode,
