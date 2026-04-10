@@ -1,0 +1,60 @@
+---
+description: Naming conventions and patterns for metrics, structured logs, and Sentry. Apply whenever adding or modifying backend observability code.
+globs: ["apps/backend/**/*.ts"]
+alwaysApply: false
+---
+
+# Observability Conventions
+
+## Prometheus metrics
+
+### Naming
+- Counters: `<domain>_<noun>_total`  e.g. `scenario_runs_total`
+- Histograms: `<domain>_<noun>_seconds`  e.g. `scenario_run_duration_seconds`
+- Gauges: `<domain>_<noun>_<unit>`
+
+### Labels
+- Keep cardinality low — never use user IDs, request IDs, or free-text as labels
+- Allowed label values: enum-like strings (type, status, method, path, status_code)
+- Normalise dynamic path segments: `/api/scenarios/clxyz` → `/api/scenarios/:id`
+
+### Registration
+- Always register metrics in a `MetricsModule` provider via `makeCounterProvider` / `makeHistogramProvider`
+- Inject via `@InjectMetric('metric_name')` — never instantiate `new Counter()` directly
+- Duration: always record in **seconds** (divide ms by 1000)
+
+## Structured logging (Pino → Loki)
+
+### Required fields on every scenario log
+```ts
+{
+  scenarioId: string,   // Prisma run ID
+  scenarioType: string, // 'success' | 'validation_error' | 'system_error' | 'slow_request' | 'teapot'
+  duration: number,     // ms
+  error?: string        // only on failures
+}
+```
+
+### Log levels
+- `info`  — successful completion
+- `warn`  — expected failures (validation_error, slow_request)
+- `error` — unexpected failures (system_error) and unhandled exceptions
+
+### Never log
+- Passwords, tokens, DSNs, or any PII
+- Full request/response bodies (use structured fields instead)
+
+## Sentry
+
+### When to capture
+- `captureException()` — only for `system_error` and truly unhandled exceptions
+- `addBreadcrumb()` — for `validation_error` and other expected failures
+
+### Always attach tags
+```ts
+scope.setTag('scenarioType', type);
+scope.setTag('scenarioId', id);
+```
+
+### Never call Sentry directly
+- Always go through `SentryService` — never `import * as Sentry from '@sentry/node'` in domain code

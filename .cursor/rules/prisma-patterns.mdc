@@ -1,0 +1,58 @@
+---
+description: Prisma usage patterns and forbidden anti-patterns. Apply to all database-related backend code.
+globs: ["apps/backend/**/*.ts", "prisma/**/*.prisma"]
+alwaysApply: false
+---
+
+# Prisma Patterns
+
+## Schema conventions
+- Table names: `snake_case` via `@@map("table_name")`
+- Model names: `PascalCase`
+- Always include `createdAt DateTime @default(now())` and `updatedAt DateTime @updatedAt`
+- Use enums for fixed value sets — never bare strings for status/type fields
+- Add `@@index` for every field used in `WHERE` or `ORDER BY` clauses
+
+## Service patterns
+
+### Always inject PrismaService
+```ts
+constructor(private readonly prisma: PrismaService) {}
+```
+
+### Prefer typed model methods
+```ts
+// ✅ correct
+await this.prisma.scenarioRun.create({ data: { ... } });
+
+// ❌ forbidden
+await this.prisma.$queryRaw`SELECT * FROM scenario_runs`;
+```
+
+### Update pattern — always use `where: { id }` not `updateMany`
+```ts
+await this.prisma.scenarioRun.update({
+  where: { id: run.id },
+  data: { status: 'completed', duration },
+});
+```
+
+### History queries — always paginate
+```ts
+await this.prisma.scenarioRun.findMany({
+  orderBy: { createdAt: 'desc' },
+  take: 20,
+});
+```
+
+## Migrations
+- Never edit migration SQL files after they are committed
+- Always run `npm run prisma:migrate:dev` (from apps/backend) to create new migrations
+- Migration name format: `<timestamp>_<snake_case_description>`
+- `prisma migrate deploy` runs automatically on container start — do not call it manually
+
+## Forbidden
+- `$queryRaw` / `$executeRaw` — use model methods
+- `prisma.$transaction` with raw SQL
+- Importing `PrismaClient` directly — always use the injected `PrismaService`
+- Modifying `@prisma/client` generated types — extend via DTOs instead

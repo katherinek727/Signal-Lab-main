@@ -1,0 +1,84 @@
+---
+description: Frontend architecture patterns for Next.js App Router, TanStack Query, React Hook Form, and shadcn/ui. Apply to all frontend code.
+globs: ["apps/frontend/**/*.ts", "apps/frontend/**/*.tsx"]
+alwaysApply: false
+---
+
+# Frontend Patterns
+
+## Next.js App Router
+
+### Server vs Client components
+- Default to **Server Components** — add `'use client'` only when needed
+- `'use client'` is required for: hooks, event handlers, browser APIs, TanStack Query
+- Never use `useEffect` to fetch data — use TanStack Query or Server Component data fetching
+
+### File conventions
+- Pages: `app/<route>/page.tsx` — always export `metadata` for SEO
+- Layouts: `app/<route>/layout.tsx`
+- Components: `components/<domain>/<component-name>.tsx`
+- Hooks: `hooks/use-<name>.ts`
+- API helpers: `lib/<domain>.ts`
+
+## TanStack Query
+
+### Always use query key factory
+```ts
+// lib/query-keys.ts
+export const queryKeys = {
+  scenarios: {
+    history: () => ['scenarios', 'history'] as const,
+  },
+};
+```
+
+### Data fetching pattern
+```ts
+const { data, isLoading } = useQuery({
+  queryKey: queryKeys.scenarios.history(),
+  queryFn: scenariosApi.history,
+  select: (res) => res.data,   // unwrap envelope
+});
+```
+
+### Mutation + cache invalidation
+```ts
+const mutation = useMutation({
+  mutationFn: scenariosApi.run,
+  onSuccess: () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.scenarios.history() });
+  },
+});
+```
+
+### Never use raw fetch in components
+- All API calls go through `lib/api.ts` → domain API module → TanStack Query
+
+## React Hook Form
+
+### Always pair with Zod
+```ts
+const schema = z.object({ type: z.enum(SCENARIO_TYPES) });
+type FormValues = z.infer<typeof schema>;
+const { register, handleSubmit } = useForm<FormValues>({ resolver: zodResolver(schema) });
+```
+
+### shadcn Select with RHF
+- Use `setValue` from `useForm` in the `onValueChange` callback — not `register`
+
+## shadcn/ui
+
+### Component usage
+- Always import from `@/components/ui/<component>` — never from `@radix-ui` directly in pages
+- Use `cn()` from `@/lib/utils` for conditional class merging — never string concatenation
+- Badge variants: `success` | `warning` | `destructive` | `info` | `default`
+
+### Layout primitives
+- `PageShell` — outermost wrapper for every page
+- `SectionHeader` — title + description + optional action slot
+- `Card` / `CardHeader` / `CardContent` — for all content panels
+
+## Styling
+- Use Tailwind utility classes — no inline styles
+- Use CSS variables from `globals.css` for brand colours: `text-primary`, `text-signal-success`, etc.
+- Animations: use `animate-slide-up`, `animate-pulse-ring` from tailwind config

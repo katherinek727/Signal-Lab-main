@@ -1,0 +1,70 @@
+---
+description: Error handling conventions for backend and frontend. Apply whenever adding error handling, exception filters, or error UI.
+globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: false
+---
+
+# Error Handling
+
+## Backend
+
+### HTTP exceptions — use NestJS built-ins
+```ts
+throw new BadRequestException('message');       // 400
+throw new NotFoundException('message');          // 404
+throw new InternalServerErrorException('msg');   // 500
+throw new HttpException(body, HttpStatus.I_AM_A_TEAPOT); // 418
+```
+
+### Never throw raw Error in controllers or services
+- Always use NestJS `HttpException` subclasses so `AllExceptionsFilter` can normalise the response
+
+### AllExceptionsFilter response shape
+```ts
+{
+  statusCode: number,
+  message: string,
+  error: string,       // HTTP status name e.g. "BAD_REQUEST"
+  path: string,
+  timestamp: string    // ISO 8601
+}
+```
+
+### HTTP 418 teapot — special case
+- The filter passes the body through verbatim — do not wrap in the standard error shape
+- Body must include `{ signal: 42, message: "I'm a teapot" }`
+
+### Logging on errors
+- `warn` for expected failures (validation, 400s)
+- `error` for unexpected failures (500s, unhandled exceptions)
+- Always include `{ scenarioId, scenarioType, error: err.message }` in the log context
+
+### Sentry on errors
+- Call `SentryService.captureException()` only for 500-level errors
+- Call `SentryService.addBreadcrumb()` for 400-level errors
+
+## Frontend
+
+### API error handling
+- `ApiError` (from `lib/api.ts`) carries `status` and `message`
+- In `useMutation.onError`: distinguish expected errors (400/418/500 from known scenarios) from unexpected ones
+- Show `toast` with `variant: 'destructive'` only for truly unexpected errors
+
+### Never swallow errors silently
+```ts
+// ❌ bad
+try { ... } catch (_) {}
+
+// ✅ good
+try { ... } catch (err) {
+  toast({ title: 'Something went wrong', description: err instanceof Error ? err.message : 'Unknown error' });
+}
+```
+
+### Loading states
+- Always show a loading indicator during async operations
+- Use `Skeleton` component for initial data loads
+- Use `Loader2` spinner on buttons during mutations (`disabled` + `animate-spin`)
+
+### Empty states
+- Every list component must handle the empty case explicitly — never render an empty `<div>`

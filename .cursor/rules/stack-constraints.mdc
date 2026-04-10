@@ -1,0 +1,34 @@
+---
+description: Enforces the mandatory technology stack for Signal Lab. Apply to every code change.
+globs: ["**/*.ts", "**/*.tsx"]
+alwaysApply: true
+---
+
+# Stack Constraints
+
+## Frontend — allowed only
+- Next.js 14 (App Router) — no Pages Router
+- shadcn/ui primitives — no MUI, Chakra, Ant Design, or Mantine
+- Tailwind CSS — no CSS Modules, styled-components, or Emotion
+- TanStack Query (`@tanstack/react-query`) — no SWR, Apollo Client, or raw fetch in components
+- React Hook Form + Zod — no Formik, no uncontrolled forms
+- Lucide React — no Heroicons, FontAwesome, or react-icons
+
+## Backend — allowed only
+- NestJS 10 — no Express raw, Fastify, or Hono
+- Prisma ORM — no TypeORM, Drizzle, Sequelize, or raw SQL queries
+- PostgreSQL 16 — no MySQL, SQLite, or MongoDB
+- `nestjs-pino` — no Winston, Bunyan, or console.log in services
+- `@willsoto/nestjs-prometheus` + `prom-client` — no custom metric endpoints
+- `@sentry/node` via SentryService — never import @sentry/node directly in domain code
+
+## Infra
+- Docker Compose — all services must be runnable via `docker compose up -d`
+- No Kubernetes, no serverless functions
+
+## Forbidden patterns
+- `any` type in TypeScript — use `unknown` and narrow
+- `console.log` in services — use injected PinoLogger
+- Raw SQL (`$queryRaw`, `$executeRaw`) — use Prisma model methods
+- Direct `fetch()` in React components — use TanStack Query hooks
+- Importing `@sentry/node` outside `SentryService`
