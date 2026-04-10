@@ -10,6 +10,7 @@ import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 
 import { MetricsService } from '../metrics/metrics.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SentryService } from '../sentry/sentry.service';
 import type { RunScenarioDto } from './dto/run-scenario.dto';
 import type { ScenarioResult } from './scenarios.types';
 
@@ -27,6 +28,7 @@ export class ScenariosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly metrics: MetricsService,
+    private readonly sentry: SentryService,
     @InjectPinoLogger(ScenariosService.name) private readonly logger: PinoLogger,
   ) {}
 
@@ -92,6 +94,14 @@ export class ScenariosService {
     );
     this.metrics.recordScenarioRun('validation_error', 'failed', duration);
 
+    // Breadcrumb — visible in Sentry trail without creating a full issue
+    this.sentry.addBreadcrumb({
+      message: errorMessage,
+      category: 'scenario.validation',
+      level: 'warning',
+      data: { scenarioId: run.id, type: 'validation_error' },
+    });
+
     throw new BadRequestException(errorMessage);
   }
 
@@ -112,8 +122,15 @@ export class ScenariosService {
     );
     this.metrics.recordScenarioRun('system_error', 'failed', duration);
 
-    // Sentry captures this in Step 14
-    throw new InternalServerErrorException(errorMessage);
+    const exception = new InternalServerErrorException(errorMessage);
+
+    // Full exception capture — appears as an issue in Sentry
+    this.sentry.captureException(exception, {
+      scenarioId: run.id,
+      scenarioType: 'system_error',
+    });
+
+    throw exception;
   }
 
   private async runSlowRequest(dto: RunScenarioDto): Promise<ScenarioResult> {

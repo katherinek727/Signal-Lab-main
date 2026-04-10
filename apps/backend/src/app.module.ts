@@ -8,6 +8,7 @@ import { HealthModule } from './health/health.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ScenariosModule } from './scenarios/scenarios.module';
+import { SentryModule } from './sentry/sentry.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
@@ -50,6 +51,7 @@ import appConfig from './config/app.config';
 
     // ── Domain modules ───────────────────────────────────────────────────────
     PrismaModule,
+    SentryModule,
     MetricsModule,
     HealthModule,
     ScenariosModule,

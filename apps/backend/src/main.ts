@@ -1,3 +1,6 @@
+// !! Must be first — Sentry patches Node internals before anything else loads
+import './instrument';
+
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -5,6 +8,7 @@ import { Logger } from 'nestjs-pino';
 
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { SentryService } from './sentry/sentry.service';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -49,6 +53,11 @@ async function bootstrap(): Promise<void> {
   SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: { persistAuthorization: true },
   });
+
+  // ── Graceful shutdown ─────────────────────────────────────────────────────
+  app.enableShutdownHooks();
+  const sentryService = app.get(SentryService);
+  process.on('SIGTERM', () => void sentryService.flush());
 
   // ── Start ─────────────────────────────────────────────────────────────────
   const port = process.env['BACKEND_PORT'] ?? 3001;
