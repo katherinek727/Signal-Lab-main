@@ -1,0 +1,16 @@
+{
+  "name": "After New Backend Endpoint",
+  "version": "1.0.0",
+  "description": "Checks that observability (metrics, logging, Sentry) is wired correctly whenever a new NestJS controller or service file is created.",
+  "when": {
+    "type": "fileCreated",
+    "patterns": [
+      "apps/backend/src/**/*.controller.ts",
+      "apps/backend/src/**/*.service.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A new NestJS controller or service file was just created. Please audit it for observability completeness:\n\n1. METRICS: Is MetricsService injected? Does every operation method record a metric with duration?\n2. LOGGING: Is @InjectPinoLogger present? Does every path (success/warn/error) emit a structured log with required fields (recordId/scenarioId, duration)? Any console.log calls?\n3. SENTRY: Is SentryService injected? Are 500-level errors captured with captureException()? Are 400-level errors using addBreadcrumb()?\n4. TYPES: Any 'any' types? Any raw SQL?\n\nFor each issue found, show the exact fix needed. Reference .cursor/skills/observability-skill/SKILL.md for the correct patterns.\nIf everything looks good, confirm with a brief summary."
+  }
+}

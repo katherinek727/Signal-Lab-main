@@ -1,0 +1,13 @@
+{
+  "name": "After Prisma Schema Change",
+  "version": "1.0.0",
+  "description": "Reminds the developer to create a migration and regenerate the Prisma client whenever schema.prisma is saved.",
+  "when": {
+    "type": "fileEdited",
+    "patterns": ["prisma/schema.prisma"]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "The Prisma schema was just modified. Please:\n1. Check if a new migration is needed (new model, new field, or enum change).\n2. If yes, remind the developer to run: `npm run prisma:migrate:dev -- --name <description>` from apps/backend/\n3. Remind them to run `npm run prisma:generate` if they only need to regenerate the client.\n4. Check if any DTOs in apps/backend/src/ need updating to reflect the schema change.\n5. Check if any frontend types in apps/frontend/src/types/ need updating.\n6. If a new model was added, suggest updating prisma/seed.ts.\nBe concise — list only the actions that are actually needed based on the diff."
+  }
+}
