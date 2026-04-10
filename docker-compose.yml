@@ -1,0 +1,149 @@
+services:
+  # ─── Database ───────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: signal-lab-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-signal}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-signal}
+      POSTGRES_DB: ${POSTGRES_DB:-signal_lab}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-signal} -d ${POSTGRES_DB:-signal_lab}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - signal-net
+
+  # ─── Backend ────────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: signal-lab-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-signal}:${POSTGRES_PASSWORD:-signal}@postgres:5432/${POSTGRES_DB:-signal_lab}
+      BACKEND_PORT: ${BACKEND_PORT:-3001}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    volumes:
+      - ./apps/backend:/app
+      - /app/node_modules
+    networks:
+      - signal-net
+
+  # ─── Frontend ───────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: signal-lab-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:${BACKEND_PORT:-3001}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - signal-net
+
+  # ─── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: signal-lab-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - backend
+    networks:
+      - signal-net
+
+  # ─── Loki ───────────────────────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.5
+    container_name: signal-lab-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki.yml
+    ports:
+      - "${LOKI_PORT:-3200}:3100"
+    volumes:
+      - ./infra/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    networks:
+      - signal-net
+
+  # ─── Promtail ───────────────────────────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:2.9.5
+    container_name: signal-lab-promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/promtail.yml
+    volumes:
+      - ./infra/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - loki
+    networks:
+      - signal-net
+
+  # ─── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.1
+    container_name: signal-lab-grafana
+    restart: unless-stopped
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_FEATURE_TOGGLES_ENABLE: publicDashboards
+    ports:
+      - "${GRAFANA_PORT:-3100}:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - signal-net
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+
+networks:
+  signal-net:
+    driver: bridge
