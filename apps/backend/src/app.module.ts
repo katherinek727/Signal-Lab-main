@@ -5,6 +5,7 @@ import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { LoggerModule } from 'nestjs-pino';
 
 import { HealthModule } from './health/health.module';
+import { MetricsModule } from './metrics/metrics.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ScenariosModule } from './scenarios/scenarios.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -49,6 +50,7 @@ import appConfig from './config/app.config';
 
     // ── Domain modules ───────────────────────────────────────────────────────
     PrismaModule,
+    MetricsModule,
     HealthModule,
     ScenariosModule,
   ],
