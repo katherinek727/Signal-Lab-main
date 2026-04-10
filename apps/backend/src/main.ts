@@ -53,6 +53,11 @@ async function bootstrap(): Promise<void> {
   // ── Start ─────────────────────────────────────────────────────────────────
   const port = process.env['BACKEND_PORT'] ?? 3001;
   await app.listen(port);
+
+  const logger = app.get(Logger);
+  logger.log(`🚀  Backend running on http://localhost:${port}/api`);
+  logger.log(`📖  Swagger docs  → http://localhost:${port}/api/docs`);
+  logger.log(`📊  Metrics       → http://localhost:${port}/metrics`);
 }
 
 void bootstrap();
