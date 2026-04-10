@@ -1,0 +1,49 @@
+// ─── Prisma Schema ────────────────────────────────────────────────────────────
+// Signal Lab — single source of truth for the database model.
+// Run `npm run prisma:migrate:dev` inside apps/backend to create a new migration.
+
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../node_modules/.prisma/client"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum ScenarioType {
+  success
+  validation_error
+  system_error
+  slow_request
+  teapot
+}
+
+enum RunStatus {
+  pending
+  completed
+  failed
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model ScenarioRun {
+  id        String       @id @default(cuid())
+  type      ScenarioType
+  name      String?      @db.VarChar(120)
+  status    RunStatus    @default(pending)
+  duration  Int?         /// execution time in milliseconds
+  error     String?      @db.Text
+  metadata  Json?        /// arbitrary per-run context (e.g. easter: true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([type])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("scenario_runs")
+}

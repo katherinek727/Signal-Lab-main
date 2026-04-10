@@ -24,8 +24,8 @@ services:
   # ─── Backend ────────────────────────────────────────────────────────────────
   backend:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
       target: development
     container_name: signal-lab-backend
     restart: unless-stopped
@@ -41,6 +41,7 @@ services:
       - "${BACKEND_PORT:-3001}:3001"
     volumes:
       - ./apps/backend:/app
+      - ./prisma:/app/prisma
       - /app/node_modules
     networks:
       - signal-net
